@@ -12,13 +12,12 @@ from homeassistant.components.sensor import (
     SensorStateClass,
 )
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import CONF_LATITUDE, CONF_LONGITUDE
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .api import PollenForecast, PollenTypeInfo
+from .api import PollenForecast
 from .const import ATTRIBUTION, DOMAIN, POLLEN_TYPES
 from .coordinator import GooglePollenDataUpdateCoordinator
 
