@@ -26,8 +26,8 @@ from .coordinator import GooglePollenDataUpdateCoordinator
 class GooglePollenSensorEntityDescription(SensorEntityDescription):
     """Describes Google Pollen sensor entity."""
 
-    value_fn: Callable[[PollenForecast, str], Any]
-    extra_state_attributes_fn: Callable[[PollenForecast, str], dict[str, Any]] | None = None
+    value_fn: Callable[[PollenForecast], Any]
+    extra_state_attributes_fn: Callable[[PollenForecast], dict[str, Any]] | None = None
 
 
 def get_pollen_index(forecast: PollenForecast, pollen_type: str) -> int | None:
@@ -111,6 +111,9 @@ def create_sensor_descriptions() -> list[GooglePollenSensorEntityDescription]:
         pollen_type_lower = pollen_type.lower()
         pollen_type_title = pollen_type.title()
 
+        # Capture pollen_type in closure
+        pt = pollen_type
+
         # Index sensor
         descriptions.append(
             GooglePollenSensorEntityDescription(
@@ -120,8 +123,8 @@ def create_sensor_descriptions() -> list[GooglePollenSensorEntityDescription]:
                 icon="mdi:flower-pollen",
                 state_class=SensorStateClass.MEASUREMENT,
                 native_unit_of_measurement="UPI",
-                value_fn=lambda f, pt=pollen_type: get_pollen_index(f, pt),
-                extra_state_attributes_fn=lambda f, pt=pollen_type: get_pollen_attributes(f, pt),
+                value_fn=lambda f, _pt=pt: get_pollen_index(f, _pt),
+                extra_state_attributes_fn=lambda f, _pt=pt: get_pollen_attributes(f, _pt),
             )
         )
 
@@ -132,7 +135,7 @@ def create_sensor_descriptions() -> list[GooglePollenSensorEntityDescription]:
                 translation_key=f"{pollen_type_lower}_category",
                 name=f"{pollen_type_title} Pollen Level",
                 icon="mdi:flower-pollen-outline",
-                value_fn=lambda f, pt=pollen_type: get_pollen_category(f, pt),
+                value_fn=lambda f, _pt=pt: get_pollen_category(f, _pt),
             )
         )
 
@@ -190,7 +193,7 @@ class GooglePollenSensor(
         """Return the state of the sensor."""
         if self.coordinator.data is None:
             return None
-        return self.entity_description.value_fn(self.coordinator.data, "")
+        return self.entity_description.value_fn(self.coordinator.data)
 
     @property
     def extra_state_attributes(self) -> dict[str, Any] | None:
@@ -200,6 +203,4 @@ class GooglePollenSensor(
             or self.entity_description.extra_state_attributes_fn is None
         ):
             return None
-        return self.entity_description.extra_state_attributes_fn(
-            self.coordinator.data, ""
-        )
+        return self.entity_description.extra_state_attributes_fn(self.coordinator.data)

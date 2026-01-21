@@ -46,12 +46,25 @@ class GooglePollenDataUpdateCoordinator(DataUpdateCoordinator[PollenForecast]):
 
     async def _async_update_data(self) -> PollenForecast:
         """Fetch data from API."""
+        _LOGGER.debug("Fetching pollen data for %s, %s", self.latitude, self.longitude)
         try:
-            return await self.client.async_get_forecast(
+            forecast = await self.client.async_get_forecast(
                 latitude=self.latitude,
                 longitude=self.longitude,
                 days=DEFAULT_FORECAST_DAYS,
             )
+            _LOGGER.debug("Got forecast with region: %s", forecast.region_code)
+            if forecast.daily_info:
+                today = forecast.daily_info[0]
+                _LOGGER.debug("Pollen types: %s", list(today.pollen_types.keys()))
+                for code, info in today.pollen_types.items():
+                    _LOGGER.debug(
+                        "  %s: in_season=%s, has_index=%s",
+                        code,
+                        info.in_season,
+                        info.index_info is not None,
+                    )
+            return forecast
         except GooglePollenApiConnectionError as err:
             raise UpdateFailed(f"Error communicating with API: {err}") from err
         except GooglePollenApiError as err:
