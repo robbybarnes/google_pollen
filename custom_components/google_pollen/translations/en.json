@@ -1,0 +1,50 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Set up Google Pollen",
+        "description": "Enter your Google Pollen API key and location coordinates.",
+        "data": {
+          "api_key": "API Key",
+          "latitude": "Latitude",
+          "longitude": "Longitude"
+        },
+        "data_description": {
+          "api_key": "Your Google Cloud API key with Pollen API enabled",
+          "latitude": "Latitude of the location to monitor",
+          "longitude": "Longitude of the location to monitor"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Invalid API key or API key does not have Pollen API access",
+      "cannot_connect": "Failed to connect to Google Pollen API",
+      "unknown": "Unexpected error occurred"
+    },
+    "abort": {
+      "already_configured": "This location is already configured"
+    }
+  },
+  "entity": {
+    "sensor": {
+      "grass_index": {
+        "name": "Grass Pollen Index"
+      },
+      "grass_category": {
+        "name": "Grass Pollen Level"
+      },
+      "tree_index": {
+        "name": "Tree Pollen Index"
+      },
+      "tree_category": {
+        "name": "Tree Pollen Level"
+      },
+      "weed_index": {
+        "name": "Weed Pollen Index"
+      },
+      "weed_category": {
+        "name": "Weed Pollen Level"
+      }
+    }
+  }
+}
