@@ -36,8 +36,11 @@ def get_pollen_index(forecast: PollenForecast, pollen_type: str) -> int | None:
         return None
     today = forecast.daily_info[0]
     pollen_info = today.pollen_types.get(pollen_type)
-    if pollen_info and pollen_info.index_info:
-        return pollen_info.index_info.value
+    if pollen_info:
+        if pollen_info.index_info and pollen_info.index_info.value is not None:
+            return pollen_info.index_info.value
+        # Pollen type exists but no index data (out of season) - return 0
+        return 0
     return None
 
 
@@ -47,8 +50,11 @@ def get_pollen_category(forecast: PollenForecast, pollen_type: str) -> str | Non
         return None
     today = forecast.daily_info[0]
     pollen_info = today.pollen_types.get(pollen_type)
-    if pollen_info and pollen_info.index_info:
-        return pollen_info.index_info.category
+    if pollen_info:
+        if pollen_info.index_info and pollen_info.index_info.category:
+            return pollen_info.index_info.category
+        # Pollen type exists but no index data (out of season) - return "None"
+        return "None"
     return None
 
 
