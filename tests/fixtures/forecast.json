@@ -1,0 +1,62 @@
+{
+  "regionCode": "US",
+  "dailyInfo": [
+    {
+      "date": {"year": 2026, "month": 4, "day": 19},
+      "pollenTypeInfo": [
+        {
+          "code": "GRASS",
+          "displayName": "Grass",
+          "inSeason": true,
+          "indexInfo": {
+            "code": "UPI",
+            "displayName": "Universal Pollen Index",
+            "value": 3,
+            "category": "Moderate",
+            "indexDescription": "Moderate grass pollen",
+            "color": {"red": 1.0, "green": 0.8, "blue": 0.0}
+          },
+          "healthRecommendations": ["Close windows"]
+        },
+        {
+          "code": "TREE",
+          "displayName": "Tree",
+          "inSeason": true,
+          "indexInfo": {
+            "code": "UPI",
+            "displayName": "Universal Pollen Index",
+            "value": 5,
+            "category": "High",
+            "indexDescription": "High tree pollen",
+            "color": {"red": 1.0, "green": 0.0, "blue": 0.0}
+          },
+          "healthRecommendations": ["Stay indoors"]
+        },
+        {
+          "code": "WEED",
+          "displayName": "Weed",
+          "inSeason": false
+        }
+      ],
+      "plantInfo": []
+    },
+    {
+      "date": {"year": 2026, "month": 4, "day": 20},
+      "pollenTypeInfo": [
+        {
+          "code": "GRASS",
+          "displayName": "Grass",
+          "inSeason": true,
+          "indexInfo": {
+            "code": "UPI",
+            "displayName": "Universal Pollen Index",
+            "value": 2,
+            "category": "Low"
+          },
+          "healthRecommendations": []
+        }
+      ],
+      "plantInfo": []
+    }
+  ]
+}

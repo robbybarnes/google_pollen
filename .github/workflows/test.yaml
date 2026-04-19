@@ -1,4 +1,4 @@
-name: Validate
+name: Tests
 
 on:
   push:
@@ -9,8 +9,8 @@ on:
       - main
 
 jobs:
-  validate:
-    name: Validate with Ruff
+  tests:
+    name: pytest
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -24,10 +24,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install ruff
+          pip install -r requirements_test.txt
 
-      - name: Run Ruff check
-        run: ruff check custom_components/ tests/
-
-      - name: Run Ruff format check
-        run: ruff format --check custom_components/ tests/
+      - name: Run pytest
+        run: pytest tests/ -q
