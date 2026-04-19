@@ -14,6 +14,20 @@
           "latitude": "Latitude of the location to monitor",
           "longitude": "Longitude of the location to monitor"
         }
+      },
+      "reconfigure": {
+        "title": "Reconfigure Google Pollen",
+        "description": "Update your API key or location coordinates.",
+        "data": {
+          "api_key": "API Key",
+          "latitude": "Latitude",
+          "longitude": "Longitude"
+        },
+        "data_description": {
+          "api_key": "Your Google Cloud API key with Pollen API enabled",
+          "latitude": "Latitude of the location to monitor",
+          "longitude": "Longitude of the location to monitor"
+        }
       }
     },
     "error": {
@@ -22,7 +36,22 @@
       "unknown": "Unexpected error occurred"
     },
     "abort": {
-      "already_configured": "This location is already configured"
+      "already_configured": "This location is already configured",
+      "unique_id_mismatch": "The reconfigured location does not match the existing entry",
+      "reconfigure_successful": "Reconfiguration was successful"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Google Pollen options",
+        "data": {
+          "update_interval_hours": "Update interval (hours)"
+        },
+        "data_description": {
+          "update_interval_hours": "How often to poll the Google Pollen API (1–24 hours). Default is 6."
+        }
+      }
     }
   },
   "entity": {
