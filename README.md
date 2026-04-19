@@ -2,6 +2,7 @@
 
 [![HACS Validation](https://github.com/robbybarnes/google_pollen/actions/workflows/hacs.yaml/badge.svg)](https://github.com/robbybarnes/google_pollen/actions/workflows/hacs.yaml)
 [![Hassfest Validation](https://github.com/robbybarnes/google_pollen/actions/workflows/hassfest.yaml/badge.svg)](https://github.com/robbybarnes/google_pollen/actions/workflows/hassfest.yaml)
+[![Tests](https://github.com/robbybarnes/google_pollen/actions/workflows/test.yaml/badge.svg)](https://github.com/robbybarnes/google_pollen/actions/workflows/test.yaml)
 
 A Home Assistant custom integration that provides pollen forecasts using the [Google Pollen API](https://developers.google.com/maps/documentation/pollen/overview).
 
@@ -11,7 +12,9 @@ A Home Assistant custom integration that provides pollen forecasts using the [Go
 - **Pollen Level Sensors**: Human-readable pollen levels (None, Very Low, Low, Moderate, High, Very High)
 - **5-Day Forecast**: Access upcoming pollen forecasts via sensor attributes
 - **Health Recommendations**: Get health advice based on current pollen levels
-- **Automatic Updates**: Data refreshes every 6 hours
+- **Automatic Updates**: Data refreshes every 6 hours (configurable 1–24h via integration options)
+- **Reconfigurable**: Update API key or location without removing the integration
+- **Diagnostics**: Download redacted diagnostics from Home Assistant for troubleshooting
 
 ## Sensors Created
 
@@ -67,6 +70,8 @@ Each index sensor includes additional attributes:
 3. Search for "Google Pollen"
 4. Enter your Google API key
 5. Enter the latitude and longitude for the location you want to monitor (defaults to your Home Assistant location)
+
+To change the API key or location later, use **Reconfigure** from the integration's overflow menu. To change the update interval, use **Configure** to open the options flow.
 
 ## Coverage
 
