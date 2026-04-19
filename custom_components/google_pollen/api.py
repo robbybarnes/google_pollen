@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-import logging
 from dataclasses import dataclass
+import json
+import logging
 from typing import Any
 
 import aiohttp
@@ -123,25 +124,46 @@ class GooglePollenApiClient:
                 params=params,
                 timeout=aiohttp.ClientTimeout(total=30),
             ) as response:
-                if response.status == 401:
-                    raise GooglePollenApiAuthError("Invalid API key")
-                if response.status == 403:
-                    raise GooglePollenApiAuthError(
-                        "API key does not have access to Pollen API"
-                    )
-                if response.status != 200:
-                    text = await response.text()
-                    raise GooglePollenApiError(
-                        f"API request failed with status {response.status}: {text}"
-                    )
+                if response.status == 200:
+                    data = await response.json()
+                    return self._parse_forecast(data)
 
-                data = await response.json()
-                return self._parse_forecast(data)
+                body_text = await response.text()
+                if self._is_auth_error(response.status, body_text):
+                    raise GooglePollenApiAuthError(
+                        f"Authentication failed ({response.status}): {body_text}"
+                    )
+                raise GooglePollenApiError(
+                    f"API request failed with status {response.status}: {body_text}"
+                )
 
         except aiohttp.ClientError as err:
             raise GooglePollenApiConnectionError(
                 f"Error connecting to Google Pollen API: {err}"
             ) from err
+
+    @staticmethod
+    def _is_auth_error(status: int, body_text: str) -> bool:
+        """Identify auth/permission failures across 400/401/403 responses."""
+        if status in (401, 403):
+            return True
+        if status != 400:
+            return False
+        try:
+            payload = json.loads(body_text)
+        except json.JSONDecodeError:
+            return False
+        error = payload.get("error", {}) if isinstance(payload, dict) else {}
+        if error.get("status") in {"UNAUTHENTICATED", "PERMISSION_DENIED"}:
+            return True
+        for detail in error.get("details", []) or []:
+            if isinstance(detail, dict) and detail.get("reason") in {
+                "API_KEY_INVALID",
+                "API_KEY_MISSING",
+                "SERVICE_DISABLED",
+            }:
+                return True
+        return False
 
     def _parse_forecast(self, data: dict[str, Any]) -> PollenForecast:
         """Parse the API response into a PollenForecast object."""
@@ -150,7 +172,13 @@ class GooglePollenApiClient:
 
         for day_data in data.get("dailyInfo", []):
             date_info = day_data.get("date", {})
-            date_str = f"{date_info.get('year', '')}-{date_info.get('month', ''):02d}-{date_info.get('day', ''):02d}"
+            year = date_info.get("year")
+            month = date_info.get("month")
+            day = date_info.get("day")
+            if not (year and month and day):
+                _LOGGER.debug("Skipping day with incomplete date: %s", date_info)
+                continue
+            date_str = f"{year:04d}-{month:02d}-{day:02d}"
 
             # Parse pollen types
             pollen_types: dict[str, PollenTypeInfo] = {}
@@ -232,16 +260,3 @@ class GooglePollenApiClient:
             picture=data.get("picture"),
             picture_closeup=data.get("pictureCloseup"),
         )
-
-    async def async_validate_api_key(self) -> bool:
-        """Validate the API key by making a test request."""
-        try:
-            # Use a known location for validation
-            await self.async_get_forecast(
-                latitude=37.7749,
-                longitude=-122.4194,
-                days=1,
-            )
-            return True
-        except GooglePollenApiAuthError:
-            return False
