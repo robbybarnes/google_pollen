@@ -11,12 +11,12 @@ from homeassistant.components.sensor import (
     SensorEntityDescription,
     SensorStateClass,
 )
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
+from . import GooglePollenConfigEntry
 from .api import PollenForecast
 from .const import ATTRIBUTION, DOMAIN, POLLEN_TYPES
 from .coordinator import GooglePollenDataUpdateCoordinator
@@ -92,11 +92,13 @@ def get_pollen_attributes(forecast: PollenForecast, pollen_type: str) -> dict[st
     for day_info in forecast.daily_info[1:]:  # Skip today
         day_pollen = day_info.pollen_types.get(pollen_type)
         if day_pollen and day_pollen.index_info:
-            forecast_data.append({
-                "date": day_info.date,
-                "index": day_pollen.index_info.value,
-                "category": day_pollen.index_info.category,
-            })
+            forecast_data.append(
+                {
+                    "date": day_info.date,
+                    "index": day_pollen.index_info.value,
+                    "category": day_pollen.index_info.category,
+                }
+            )
     if forecast_data:
         attrs["forecast"] = forecast_data
 
@@ -124,7 +126,9 @@ def create_sensor_descriptions() -> list[GooglePollenSensorEntityDescription]:
                 state_class=SensorStateClass.MEASUREMENT,
                 native_unit_of_measurement="UPI",
                 value_fn=lambda f, _pt=pt: get_pollen_index(f, _pt),
-                extra_state_attributes_fn=lambda f, _pt=pt: get_pollen_attributes(f, _pt),
+                extra_state_attributes_fn=(
+                    lambda f, _pt=pt: get_pollen_attributes(f, _pt)
+                ),
             )
         )
 
@@ -147,11 +151,11 @@ SENSOR_DESCRIPTIONS = create_sensor_descriptions()
 
 async def async_setup_entry(
     hass: HomeAssistant,
-    entry: ConfigEntry,
+    entry: GooglePollenConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up Google Pollen sensors based on a config entry."""
-    coordinator: GooglePollenDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
+    coordinator = entry.runtime_data
 
     async_add_entities(
         GooglePollenSensor(coordinator, description, entry)
@@ -172,7 +176,7 @@ class GooglePollenSensor(
         self,
         coordinator: GooglePollenDataUpdateCoordinator,
         description: GooglePollenSensorEntityDescription,
-        entry: ConfigEntry,
+        entry: GooglePollenConfigEntry,
     ) -> None:
         """Initialize the sensor."""
         super().__init__(coordinator)

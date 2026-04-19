@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-import logging
 from datetime import timedelta
+import logging
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
@@ -15,7 +15,12 @@ from .api import (
     GooglePollenApiError,
     PollenForecast,
 )
-from .const import DEFAULT_FORECAST_DAYS, DEFAULT_UPDATE_INTERVAL, DOMAIN
+from .const import (
+    CONF_UPDATE_INTERVAL_HOURS,
+    DEFAULT_FORECAST_DAYS,
+    DEFAULT_UPDATE_INTERVAL_HOURS,
+    DOMAIN,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -23,22 +28,24 @@ _LOGGER = logging.getLogger(__name__)
 class GooglePollenDataUpdateCoordinator(DataUpdateCoordinator[PollenForecast]):
     """Class to manage fetching Google Pollen data."""
 
-    config_entry: ConfigEntry
-
     def __init__(
         self,
         hass: HomeAssistant,
+        config_entry: ConfigEntry,
         client: GooglePollenApiClient,
         latitude: float,
         longitude: float,
-        update_interval: timedelta = DEFAULT_UPDATE_INTERVAL,
     ) -> None:
         """Initialize the coordinator."""
+        interval_hours = config_entry.options.get(
+            CONF_UPDATE_INTERVAL_HOURS, DEFAULT_UPDATE_INTERVAL_HOURS
+        )
         super().__init__(
             hass,
             _LOGGER,
+            config_entry=config_entry,
             name=DOMAIN,
-            update_interval=update_interval,
+            update_interval=timedelta(hours=interval_hours),
         )
         self.client = client
         self.latitude = latitude
@@ -53,19 +60,20 @@ class GooglePollenDataUpdateCoordinator(DataUpdateCoordinator[PollenForecast]):
                 longitude=self.longitude,
                 days=DEFAULT_FORECAST_DAYS,
             )
-            _LOGGER.debug("Got forecast with region: %s", forecast.region_code)
-            if forecast.daily_info:
-                today = forecast.daily_info[0]
-                _LOGGER.debug("Pollen types: %s", list(today.pollen_types.keys()))
-                for code, info in today.pollen_types.items():
-                    _LOGGER.debug(
-                        "  %s: in_season=%s, has_index=%s",
-                        code,
-                        info.in_season,
-                        info.index_info is not None,
-                    )
-            return forecast
         except GooglePollenApiConnectionError as err:
             raise UpdateFailed(f"Error communicating with API: {err}") from err
         except GooglePollenApiError as err:
             raise UpdateFailed(f"Error fetching pollen data: {err}") from err
+
+        _LOGGER.debug("Got forecast with region: %s", forecast.region_code)
+        if forecast.daily_info:
+            today = forecast.daily_info[0]
+            _LOGGER.debug("Pollen types: %s", list(today.pollen_types.keys()))
+            for code, info in today.pollen_types.items():
+                _LOGGER.debug(
+                    "  %s: in_season=%s, has_index=%s",
+                    code,
+                    info.in_season,
+                    info.index_info is not None,
+                )
+        return forecast

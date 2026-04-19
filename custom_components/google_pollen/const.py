@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from datetime import timedelta
 from typing import Final
 
 DOMAIN: Final = "google_pollen"
@@ -11,13 +10,14 @@ DOMAIN: Final = "google_pollen"
 CONF_API_KEY: Final = "api_key"
 CONF_LATITUDE: Final = "latitude"
 CONF_LONGITUDE: Final = "longitude"
+CONF_UPDATE_INTERVAL_HOURS: Final = "update_interval_hours"
 
 # API
 API_BASE_URL: Final = "https://pollen.googleapis.com/v1/forecast:lookup"
 DEFAULT_FORECAST_DAYS: Final = 5
 
 # Update interval
-DEFAULT_UPDATE_INTERVAL: Final = timedelta(hours=6)
+DEFAULT_UPDATE_INTERVAL_HOURS: Final = 6
 
 # Pollen types
 POLLEN_TYPE_GRASS: Final = "GRASS"
