@@ -54,3 +54,34 @@ async def test_sensor_out_of_season_fallbacks(
     weed_category = hass.states.get("sensor.google_pollen_weed_pollen_level")
     assert weed_category is not None
     assert weed_category.state == "None"
+
+
+async def test_color_hex_attribute(
+    hass: HomeAssistant, mock_api_get_forecast
+) -> None:
+    """The color attribute is exposed as a #RRGGBB string."""
+    await _setup(hass)
+
+    grass_index = hass.states.get("sensor.google_pollen_grass_pollen_index")
+    assert grass_index is not None
+    assert grass_index.attributes["color"] == "#FFCC00"
+
+
+async def test_in_season_plants_attribute(
+    hass: HomeAssistant, mock_api_get_forecast
+) -> None:
+    """In-season plants are bucketed under their parent type sensor."""
+    await _setup(hass)
+
+    grass_index = hass.states.get("sensor.google_pollen_grass_pollen_index")
+    assert grass_index is not None
+    plants = grass_index.attributes.get("in_season_plants")
+    assert plants is not None
+    codes = [p["code"] for p in plants]
+    assert codes == ["GRAMINALES"]
+    assert plants[0]["family"] == "Poaceae"
+
+    # Out-of-season plant is excluded from the WEED bucket.
+    weed_index = hass.states.get("sensor.google_pollen_weed_pollen_index")
+    assert weed_index is not None
+    assert "in_season_plants" not in weed_index.attributes

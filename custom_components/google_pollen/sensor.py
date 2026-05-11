@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
+from functools import partial
 from typing import Any
 
 from homeassistant.components.sensor import (
@@ -12,13 +13,12 @@ from homeassistant.components.sensor import (
     SensorStateClass,
 )
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from . import GooglePollenConfigEntry
 from .api import PollenForecast
-from .const import ATTRIBUTION, DOMAIN, POLLEN_TYPES
+from .const import ATTRIBUTION, POLLEN_TYPES
 from .coordinator import GooglePollenDataUpdateCoordinator
 
 
@@ -27,7 +27,7 @@ class GooglePollenSensorEntityDescription(SensorEntityDescription):
     """Describes Google Pollen sensor entity."""
 
     value_fn: Callable[[PollenForecast], Any]
-    extra_state_attributes_fn: Callable[[PollenForecast], dict[str, Any]] | None = None
+    pollen_type: str | None = None
 
 
 def get_pollen_index(forecast: PollenForecast, pollen_type: str) -> int | None:
@@ -58,88 +58,34 @@ def get_pollen_category(forecast: PollenForecast, pollen_type: str) -> str | Non
     return None
 
 
-def get_pollen_in_season(forecast: PollenForecast, pollen_type: str) -> bool | None:
-    """Get whether a pollen type is in season."""
-    if not forecast.daily_info:
-        return None
-    today = forecast.daily_info[0]
-    pollen_info = today.pollen_types.get(pollen_type)
-    if pollen_info:
-        return pollen_info.in_season
-    return None
-
-
-def get_pollen_attributes(forecast: PollenForecast, pollen_type: str) -> dict[str, Any]:
-    """Get extra attributes for a pollen type."""
-    attrs: dict[str, Any] = {}
-    if not forecast.daily_info:
-        return attrs
-
-    today = forecast.daily_info[0]
-    pollen_info = today.pollen_types.get(pollen_type)
-
-    if pollen_info:
-        attrs["in_season"] = pollen_info.in_season
-        if pollen_info.health_recommendations:
-            attrs["health_recommendations"] = pollen_info.health_recommendations
-        if pollen_info.index_info:
-            attrs["index_description"] = pollen_info.index_info.description
-            if pollen_info.index_info.color:
-                attrs["color"] = pollen_info.index_info.color
-
-    # Add forecast for upcoming days
-    forecast_data = []
-    for day_info in forecast.daily_info[1:]:  # Skip today
-        day_pollen = day_info.pollen_types.get(pollen_type)
-        if day_pollen and day_pollen.index_info:
-            forecast_data.append(
-                {
-                    "date": day_info.date,
-                    "index": day_pollen.index_info.value,
-                    "category": day_pollen.index_info.category,
-                }
-            )
-    if forecast_data:
-        attrs["forecast"] = forecast_data
-
-    return attrs
-
-
 def create_sensor_descriptions() -> list[GooglePollenSensorEntityDescription]:
     """Create sensor descriptions for all pollen types."""
-    descriptions = []
+    descriptions: list[GooglePollenSensorEntityDescription] = []
 
     for pollen_type in POLLEN_TYPES:
-        pollen_type_lower = pollen_type.lower()
-        pollen_type_title = pollen_type.title()
+        slug = pollen_type.lower()
+        title = pollen_type.title()
 
-        # Capture pollen_type in closure
-        pt = pollen_type
-
-        # Index sensor
         descriptions.append(
             GooglePollenSensorEntityDescription(
-                key=f"{pollen_type_lower}_index",
-                translation_key=f"{pollen_type_lower}_index",
-                name=f"{pollen_type_title} Pollen Index",
+                key=f"{slug}_index",
+                translation_key=f"{slug}_index",
+                name=f"{title} Pollen Index",
                 icon="mdi:flower-pollen",
                 state_class=SensorStateClass.MEASUREMENT,
                 native_unit_of_measurement="UPI",
-                value_fn=lambda f, _pt=pt: get_pollen_index(f, _pt),
-                extra_state_attributes_fn=(
-                    lambda f, _pt=pt: get_pollen_attributes(f, _pt)
-                ),
+                value_fn=partial(get_pollen_index, pollen_type=pollen_type),
+                pollen_type=pollen_type,
             )
         )
 
-        # Category sensor
         descriptions.append(
             GooglePollenSensorEntityDescription(
-                key=f"{pollen_type_lower}_category",
-                translation_key=f"{pollen_type_lower}_category",
-                name=f"{pollen_type_title} Pollen Level",
+                key=f"{slug}_category",
+                translation_key=f"{slug}_category",
+                name=f"{title} Pollen Level",
                 icon="mdi:flower-pollen-outline",
-                value_fn=lambda f, _pt=pt: get_pollen_category(f, _pt),
+                value_fn=partial(get_pollen_category, pollen_type=pollen_type),
             )
         )
 
@@ -182,15 +128,7 @@ class GooglePollenSensor(
         super().__init__(coordinator)
         self.entity_description = description
         self._attr_unique_id = f"{entry.entry_id}_{description.key}"
-
-        self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, entry.entry_id)},
-            name="Google Pollen",
-            manufacturer="Google",
-            model="Pollen API",
-            entry_type=DeviceEntryType.SERVICE,
-            configuration_url="https://developers.google.com/maps/documentation/pollen",
-        )
+        self._attr_device_info = coordinator.device_info
 
     @property
     def native_value(self) -> Any:
@@ -202,9 +140,7 @@ class GooglePollenSensor(
     @property
     def extra_state_attributes(self) -> dict[str, Any] | None:
         """Return extra state attributes."""
-        if (
-            self.coordinator.data is None
-            or self.entity_description.extra_state_attributes_fn is None
-        ):
+        pollen_type = self.entity_description.pollen_type
+        if pollen_type is None or self.coordinator.data is None:
             return None
-        return self.entity_description.extra_state_attributes_fn(self.coordinator.data)
+        return self.coordinator.attributes_by_type.get(pollen_type) or None

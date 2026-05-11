@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 import logging
 from typing import Any
 
@@ -29,6 +30,11 @@ from .const import (
 )
 
 _LOGGER = logging.getLogger(__name__)
+
+
+def _unique_id(latitude: float, longitude: float) -> str:
+    """Build the per-location unique id."""
+    return f"{latitude}_{longitude}"
 
 
 async def _validate_connection(hass, user_input: dict[str, Any]) -> dict[str, str]:
@@ -90,17 +96,13 @@ class GooglePollenConfigFlow(ConfigFlow, domain=DOMAIN):
 
         if user_input is not None:
             await self.async_set_unique_id(
-                f"{user_input[CONF_LATITUDE]}_{user_input[CONF_LONGITUDE]}"
+                _unique_id(user_input[CONF_LATITUDE], user_input[CONF_LONGITUDE])
             )
             self._abort_if_unique_id_configured()
 
             errors = await _validate_connection(self.hass, user_input)
             if not errors:
-                title = (
-                    f"Pollen ({user_input[CONF_LATITUDE]:.2f}, "
-                    f"{user_input[CONF_LONGITUDE]:.2f})"
-                )
-                return self.async_create_entry(title=title, data=user_input)
+                return self.async_create_entry(title="Google Pollen", data=user_input)
 
         defaults = {
             CONF_API_KEY: (user_input or {}).get(CONF_API_KEY, ""),
@@ -121,19 +123,35 @@ class GooglePollenConfigFlow(ConfigFlow, domain=DOMAIN):
     async def async_step_reconfigure(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
-        """Handle a reconfigure flow."""
+        """Handle a reconfigure flow.
+
+        Allows changing API key and/or location. Aborts if the new location
+        collides with a different existing entry.
+        """
         entry = self._get_reconfigure_entry()
         errors: dict[str, str] = {}
 
         if user_input is not None:
-            await self.async_set_unique_id(
-                f"{user_input[CONF_LATITUDE]}_{user_input[CONF_LONGITUDE]}"
+            new_unique_id = _unique_id(
+                user_input[CONF_LATITUDE], user_input[CONF_LONGITUDE]
             )
-            self._abort_if_unique_id_mismatch()
+            collision = next(
+                (
+                    other
+                    for other in self._async_current_entries()
+                    if other.entry_id != entry.entry_id
+                    and other.unique_id == new_unique_id
+                ),
+                None,
+            )
+            if collision is not None:
+                return self.async_abort(reason="already_configured")
 
             errors = await _validate_connection(self.hass, user_input)
             if not errors:
-                return self.async_update_reload_and_abort(entry, data=user_input)
+                return self.async_update_reload_and_abort(
+                    entry, data=user_input, unique_id=new_unique_id
+                )
 
         defaults = {
             CONF_API_KEY: (user_input or entry.data).get(CONF_API_KEY, ""),
@@ -144,6 +162,31 @@ class GooglePollenConfigFlow(ConfigFlow, domain=DOMAIN):
         return self.async_show_form(
             step_id="reconfigure",
             data_schema=_build_schema(defaults),
+            errors=errors,
+        )
+
+    async def async_step_reauth(
+        self, entry_data: Mapping[str, Any]
+    ) -> ConfigFlowResult:
+        """Handle a reauth flow when the API key stops working."""
+        return await self.async_step_reauth_confirm()
+
+    async def async_step_reauth_confirm(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Prompt the user for a new API key."""
+        entry = self._get_reauth_entry()
+        errors: dict[str, str] = {}
+
+        if user_input is not None:
+            merged = {**entry.data, CONF_API_KEY: user_input[CONF_API_KEY]}
+            errors = await _validate_connection(self.hass, merged)
+            if not errors:
+                return self.async_update_reload_and_abort(entry, data=merged)
+
+        return self.async_show_form(
+            step_id="reauth_confirm",
+            data_schema=vol.Schema({vol.Required(CONF_API_KEY): str}),
             errors=errors,
         )
 

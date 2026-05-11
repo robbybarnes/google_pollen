@@ -46,6 +46,7 @@ async def async_get_config_entry_diagnostics(
                 if coordinator.update_interval
                 else None
             ),
+            "attributes_by_type": coordinator.attributes_by_type,
         },
         "forecast": _serialize(forecast) if forecast is not None else None,
     }

@@ -28,6 +28,16 @@
           "latitude": "Latitude of the location to monitor",
           "longitude": "Longitude of the location to monitor"
         }
+      },
+      "reauth_confirm": {
+        "title": "Re-authenticate Google Pollen",
+        "description": "Enter a new API key for Google Pollen.",
+        "data": {
+          "api_key": "API Key"
+        },
+        "data_description": {
+          "api_key": "Your Google Cloud API key with Pollen API enabled"
+        }
       }
     },
     "error": {
@@ -37,8 +47,8 @@
     },
     "abort": {
       "already_configured": "This location is already configured",
-      "unique_id_mismatch": "The reconfigured location does not match the existing entry",
-      "reconfigure_successful": "Reconfiguration was successful"
+      "reconfigure_successful": "Reconfiguration was successful",
+      "reauth_successful": "Re-authentication was successful"
     }
   },
   "options": {

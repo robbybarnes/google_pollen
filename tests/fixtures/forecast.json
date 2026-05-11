@@ -38,7 +38,44 @@
           "inSeason": false
         }
       ],
-      "plantInfo": []
+      "plantInfo": [
+        {
+          "code": "GRAMINALES",
+          "displayName": "Grasses",
+          "inSeason": true,
+          "indexInfo": {
+            "code": "UPI",
+            "value": 3,
+            "category": "Moderate"
+          },
+          "plantDescription": {
+            "type": "GRASS",
+            "family": "Poaceae",
+            "season": "Late spring, early summer",
+            "crossReaction": "Pollen of other grasses"
+          }
+        },
+        {
+          "code": "OAK",
+          "displayName": "Oak",
+          "inSeason": true,
+          "plantDescription": {
+            "type": "TREE",
+            "family": "Fagaceae",
+            "season": "Spring",
+            "crossReaction": "Beech and chestnut pollen"
+          }
+        },
+        {
+          "code": "MUGWORT",
+          "displayName": "Mugwort",
+          "inSeason": false,
+          "plantDescription": {
+            "type": "WEED",
+            "family": "Asteraceae"
+          }
+        }
+      ]
     },
     {
       "date": {"year": 2026, "month": 4, "day": 20},

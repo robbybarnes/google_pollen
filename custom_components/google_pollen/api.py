@@ -35,7 +35,7 @@ class PollenIndex:
     value: int | None
     category: str | None
     description: str | None
-    color: dict[str, float] | None
+    color: str | None
 
 
 @dataclass
@@ -137,7 +137,7 @@ class GooglePollenApiClient:
                     f"API request failed with status {response.status}: {body_text}"
                 )
 
-        except aiohttp.ClientError as err:
+        except (aiohttp.ClientError, TimeoutError) as err:
             raise GooglePollenApiConnectionError(
                 f"Error connecting to Google Pollen API: {err}"
             ) from err
@@ -245,7 +245,7 @@ class GooglePollenApiClient:
             value=data.get("value"),
             category=data.get("category"),
             description=data.get("indexDescription"),
-            color=data.get("color"),
+            color=_color_to_hex(data.get("color")),
         )
 
     def _parse_plant_description(self, data: dict[str, Any]) -> PlantDescription:
@@ -260,3 +260,15 @@ class GooglePollenApiClient:
             picture=data.get("picture"),
             picture_closeup=data.get("pictureCloseup"),
         )
+
+
+def _color_to_hex(data: dict[str, float] | None) -> str | None:
+    """Convert Google's {red, green, blue} float color to a #RRGGBB string."""
+    if data is None:
+        return None
+    channels = []
+    for key in ("red", "green", "blue"):
+        value = data.get(key, 0.0) or 0.0
+        clamped = max(0.0, min(1.0, float(value)))
+        channels.append(round(clamped * 255))
+    return "#{:02X}{:02X}{:02X}".format(*channels)

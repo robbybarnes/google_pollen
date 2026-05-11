@@ -126,6 +126,110 @@ async def test_reconfigure_flow(hass: HomeAssistant, mock_api_get_forecast) -> N
     assert entry.data[CONF_API_KEY] == "new-key"
 
 
+async def test_reconfigure_changes_location(
+    hass: HomeAssistant, mock_api_get_forecast
+) -> None:
+    """Reconfigure can change lat/long and the unique_id is updated."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        unique_id=f"{USER_INPUT[CONF_LATITUDE]}_{USER_INPUT[CONF_LONGITUDE]}",
+        data=USER_INPUT,
+    )
+    entry.add_to_hass(hass)
+
+    result = await entry.start_reconfigure_flow(hass)
+    new_input = {**USER_INPUT, CONF_LATITUDE: 40.0, CONF_LONGITUDE: -74.0}
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], new_input
+    )
+
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "reconfigure_successful"
+    assert entry.data[CONF_LATITUDE] == 40.0
+    assert entry.data[CONF_LONGITUDE] == -74.0
+    assert entry.unique_id == "40.0_-74.0"
+
+
+async def test_reconfigure_collision_aborts(
+    hass: HomeAssistant, mock_api_get_forecast
+) -> None:
+    """Reconfiguring to a location owned by another entry aborts."""
+    other = MockConfigEntry(
+        domain=DOMAIN,
+        unique_id="40.0_-74.0",
+        data={**USER_INPUT, CONF_LATITUDE: 40.0, CONF_LONGITUDE: -74.0},
+    )
+    other.add_to_hass(hass)
+
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        unique_id=f"{USER_INPUT[CONF_LATITUDE]}_{USER_INPUT[CONF_LONGITUDE]}",
+        data=USER_INPUT,
+    )
+    entry.add_to_hass(hass)
+
+    result = await entry.start_reconfigure_flow(hass)
+    new_input = {**USER_INPUT, CONF_LATITUDE: 40.0, CONF_LONGITUDE: -74.0}
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], new_input
+    )
+
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "already_configured"
+    # Original entry left untouched.
+    assert entry.data[CONF_LATITUDE] == USER_INPUT[CONF_LATITUDE]
+
+
+async def test_reauth_flow_success(
+    hass: HomeAssistant, mock_api_get_forecast
+) -> None:
+    """Reauth replaces the API key on the existing entry."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        unique_id=f"{USER_INPUT[CONF_LATITUDE]}_{USER_INPUT[CONF_LONGITUDE]}",
+        data=USER_INPUT,
+    )
+    entry.add_to_hass(hass)
+
+    result = await entry.start_reauth_flow(hass)
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "reauth_confirm"
+
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {CONF_API_KEY: "rotated-key"}
+    )
+
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "reauth_successful"
+    assert entry.data[CONF_API_KEY] == "rotated-key"
+    # Lat/long are preserved.
+    assert entry.data[CONF_LATITUDE] == USER_INPUT[CONF_LATITUDE]
+
+
+async def test_reauth_flow_invalid_key(hass: HomeAssistant) -> None:
+    """A bad replacement key keeps the form open with invalid_auth."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        unique_id=f"{USER_INPUT[CONF_LATITUDE]}_{USER_INPUT[CONF_LONGITUDE]}",
+        data=USER_INPUT,
+    )
+    entry.add_to_hass(hass)
+
+    with patch(
+        "custom_components.google_pollen.config_flow.GooglePollenApiClient.async_get_forecast",
+        new=AsyncMock(side_effect=GooglePollenApiAuthError("nope")),
+    ):
+        result = await entry.start_reauth_flow(hass)
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"], {CONF_API_KEY: "still-bad"}
+        )
+
+    assert result["type"] is FlowResultType.FORM
+    assert result["errors"] == {"base": "invalid_auth"}
+    # Original key is untouched until the user gives a valid one.
+    assert entry.data[CONF_API_KEY] == USER_INPUT[CONF_API_KEY]
+
+
 async def test_options_flow(hass: HomeAssistant, mock_api_get_forecast) -> None:
     """Options flow sets the update interval."""
     entry = MockConfigEntry(
