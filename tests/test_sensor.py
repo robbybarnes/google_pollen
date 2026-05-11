@@ -56,9 +56,7 @@ async def test_sensor_out_of_season_fallbacks(
     assert weed_category.state == "None"
 
 
-async def test_color_hex_attribute(
-    hass: HomeAssistant, mock_api_get_forecast
-) -> None:
+async def test_color_hex_attribute(hass: HomeAssistant, mock_api_get_forecast) -> None:
     """The color attribute is exposed as a #RRGGBB string."""
     await _setup(hass)
 

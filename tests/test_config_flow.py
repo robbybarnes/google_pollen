@@ -180,9 +180,7 @@ async def test_reconfigure_collision_aborts(
     assert entry.data[CONF_LATITUDE] == USER_INPUT[CONF_LATITUDE]
 
 
-async def test_reauth_flow_success(
-    hass: HomeAssistant, mock_api_get_forecast
-) -> None:
+async def test_reauth_flow_success(hass: HomeAssistant, mock_api_get_forecast) -> None:
     """Reauth replaces the API key on the existing entry."""
     entry = MockConfigEntry(
         domain=DOMAIN,
