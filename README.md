@@ -11,9 +11,11 @@ A Home Assistant custom integration that provides pollen forecasts using the [Go
 - **Pollen Index Sensors**: Get the Universal Pollen Index (UPI) for grass, tree, and weed pollen (scale 0-5)
 - **Pollen Level Sensors**: Human-readable pollen levels (None, Very Low, Low, Moderate, High, Very High)
 - **5-Day Forecast**: Access upcoming pollen forecasts via sensor attributes
+- **In-Season Plant Details**: Per-pollen-type list of plants currently in season, with family and cross-reaction info
 - **Health Recommendations**: Get health advice based on current pollen levels
 - **Automatic Updates**: Data refreshes every 6 hours (configurable 1–24h via integration options)
-- **Reconfigurable**: Update API key or location without removing the integration
+- **Reconfigurable**: Update API key *or* location without removing the integration
+- **Re-authentication**: If your API key is revoked or rotated, Home Assistant prompts you to enter a new one — no manual cleanup
 - **Diagnostics**: Download redacted diagnostics from Home Assistant for troubleshooting
 
 ## Sensors Created
@@ -33,6 +35,8 @@ Each index sensor includes additional attributes:
 - `in_season`: Whether the pollen type is currently in season
 - `health_recommendations`: List of health tips based on pollen levels
 - `index_description`: Description of what the current index level means
+- `color`: Index color as a `#RRGGBB` hex string (usable directly in Lovelace conditions)
+- `in_season_plants`: List of plants currently in season for this pollen type, each with `code`, `display_name`, `family`, `season`, and `cross_reaction`
 - `forecast`: Array of upcoming days with index and category values
 
 ## Prerequisites
@@ -71,7 +75,7 @@ Each index sensor includes additional attributes:
 4. Enter your Google API key
 5. Enter the latitude and longitude for the location you want to monitor (defaults to your Home Assistant location)
 
-To change the API key or location later, use **Reconfigure** from the integration's overflow menu. To change the update interval, use **Configure** to open the options flow.
+To change the API key or location later, use **Reconfigure** from the integration's overflow menu — both fields are editable, and the integration will reject collisions with another configured location. To change the update interval, use **Configure** to open the options flow. If your API key stops working, Home Assistant will surface a re-authentication prompt automatically.
 
 ## Coverage
 
@@ -116,6 +120,7 @@ entities:
 ### "Invalid API key" error
 - Ensure the Pollen API is enabled in your Google Cloud project
 - Check that your API key has no IP restrictions or that your Home Assistant IP is allowed
+- If the key was working previously and was rotated or revoked, Home Assistant will show a re-authentication prompt — enter the new key there instead of removing and re-adding the integration
 
 ### Sensors show "Unknown"
 - Pollen data may not be available for your location
