@@ -25,11 +25,13 @@ A Home Assistant custom integration that provides pollen forecasts using the [Go
 | Sensor | Description | Unit |
 |--------|-------------|------|
 | `sensor.google_pollen_grass_pollen_index` | Grass pollen index | UPI (0-5) |
-| `sensor.google_pollen_grass_pollen_level` | Grass pollen category | Text |
+| `sensor.google_pollen_grass_pollen_level` | Grass pollen category | Enum |
 | `sensor.google_pollen_tree_pollen_index` | Tree pollen index | UPI (0-5) |
-| `sensor.google_pollen_tree_pollen_level` | Tree pollen category | Text |
+| `sensor.google_pollen_tree_pollen_level` | Tree pollen category | Enum |
 | `sensor.google_pollen_weed_pollen_index` | Weed pollen index | UPI (0-5) |
-| `sensor.google_pollen_weed_pollen_level` | Weed pollen category | Text |
+| `sensor.google_pollen_weed_pollen_level` | Weed pollen category | Enum |
+
+The level sensors are enum sensors with the states `None`, `Very Low`, `Low`, `Moderate`, `High`, and `Very High`.
 
 ### Sensor Attributes
 
@@ -46,6 +48,8 @@ Each index sensor includes additional attributes:
 In addition to the six sensors above, one index sensor is created for every plant the API reports for your region (e.g. `sensor.google_pollen_oak_pollen_index`). These are **disabled by default** to avoid clutter — open the Google Pollen device page in Home Assistant and enable the plants you care about. Each plant sensor exposes `in_season`, `category`, `family`, `season`, and `cross_reaction` attributes where the API provides them.
 
 ## Prerequisites
+
+- Home Assistant **2024.11** or newer
 
 ### Google Cloud API Key
 
@@ -78,10 +82,13 @@ In addition to the six sensors above, one index sensor is created for every plan
 1. Go to **Settings** → **Devices & Services**
 2. Click **+ Add Integration**
 3. Search for "Google Pollen"
-4. Enter your Google API key
-5. Enter the latitude and longitude for the location you want to monitor (defaults to your Home Assistant location)
+4. Enter a name for the location (used as the device name — defaults to "Google Pollen")
+5. Enter your Google API key
+6. Enter the latitude and longitude for the location you want to monitor (defaults to your Home Assistant location)
 
-To change the API key or location later, use **Reconfigure** from the integration's overflow menu — both fields are editable, and the integration will reject collisions with another configured location. To change the update interval, use **Configure** to open the options flow. If your API key stops working, Home Assistant will surface a re-authentication prompt automatically.
+To monitor several locations, add the integration once per location and give each a distinct name.
+
+To change the name, API key, or location later, use **Reconfigure** from the integration's overflow menu — all fields are editable, and the integration will reject collisions with another configured location. To change the update interval, use **Configure** to open the options flow. If your API key stops working, Home Assistant will surface a re-authentication prompt automatically.
 
 ## Coverage
 
