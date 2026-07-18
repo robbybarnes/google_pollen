@@ -12,6 +12,7 @@ A Home Assistant custom integration that provides pollen forecasts using the [Go
 - **Pollen Level Sensors**: Human-readable pollen levels (None, Very Low, Low, Moderate, High, Very High)
 - **5-Day Forecast**: Access upcoming pollen forecasts via sensor attributes
 - **In-Season Plant Details**: Per-pollen-type list of plants currently in season, with family and cross-reaction info
+- **Per-Plant Sensors**: Optional index sensors for each plant the API reports for your region (oak, birch, ragweed, ...) — disabled by default, enable the ones you care about from the device page
 - **Health Recommendations**: Get health advice based on current pollen levels
 - **Automatic Updates**: Data refreshes every 6 hours (configurable 1–24h via integration options)
 - **Multiple Locations**: Add the integration once per location, each with its own name
@@ -38,7 +39,11 @@ Each index sensor includes additional attributes:
 - `index_description`: Description of what the current index level means
 - `color`: Index color as a `#RRGGBB` hex string (usable directly in Lovelace conditions)
 - `in_season_plants`: List of plants currently in season for this pollen type, each with `code`, `display_name`, `family`, `season`, and `cross_reaction`
-- `forecast`: Array of upcoming days with index and category values
+- `forecast`: Array of upcoming days with index and category values; each entry has `datetime` (weather-forecast-card style) plus `date`, `index`, and `category`
+
+### Per-Plant Sensors
+
+In addition to the six sensors above, one index sensor is created for every plant the API reports for your region (e.g. `sensor.google_pollen_oak_pollen_index`). These are **disabled by default** to avoid clutter — open the Google Pollen device page in Home Assistant and enable the plants you care about. Each plant sensor exposes `in_season`, `category`, `family`, `season`, and `cross_reaction` attributes where the API provides them.
 
 ## Prerequisites
 

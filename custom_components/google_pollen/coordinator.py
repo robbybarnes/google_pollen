@@ -115,6 +115,10 @@ def _build_attributes_by_type(
             if day_pollen and day_pollen.index_info:
                 forecast_days.append(
                     {
+                        # "datetime" mirrors HA's weather-forecast shape so
+                        # forecast cards can consume the list directly;
+                        # "date" is kept for existing templates.
+                        "datetime": day_info.date,
                         "date": day_info.date,
                         "index": day_pollen.index_info.value,
                         "category": day_pollen.index_info.category,

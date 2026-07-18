@@ -2,11 +2,15 @@
 
 from __future__ import annotations
 
+from unittest.mock import patch
+
 from homeassistant.const import CONF_LATITUDE, CONF_LONGITUDE
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import entity_registry as er
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.google_pollen.const import CONF_API_KEY, DOMAIN
+from custom_components.google_pollen.sensor import GooglePollenPlantSensor
 
 USER_INPUT = {
     CONF_API_KEY: "test-key",
@@ -84,3 +88,64 @@ async def test_in_season_plants_attribute(
     weed_index = hass.states.get("sensor.google_pollen_weed_pollen_index")
     assert weed_index is not None
     assert "in_season_plants" not in weed_index.attributes
+
+
+async def test_forecast_attribute_has_weather_style_datetime(
+    hass: HomeAssistant, mock_api_get_forecast
+) -> None:
+    """Forecast entries carry both `datetime` (weather-card style) and `date`."""
+    await _setup(hass)
+
+    grass_index = hass.states.get("sensor.google_pollen_grass_pollen_index")
+    assert grass_index is not None
+    forecast = grass_index.attributes["forecast"]
+    assert forecast[0]["datetime"] == "2026-04-20"
+    assert forecast[0]["date"] == "2026-04-20"
+    assert forecast[0]["index"] == 2
+    assert forecast[0]["category"] == "Low"
+
+
+async def test_plant_sensors_disabled_by_default(
+    hass: HomeAssistant, mock_api_get_forecast
+) -> None:
+    """Plant sensors are registered but disabled until the user opts in."""
+    entry = await _setup(hass)
+    registry = er.async_get(hass)
+
+    for plant in ("graminales", "oak", "mugwort"):
+        entity_id = registry.async_get_entity_id(
+            "sensor", DOMAIN, f"{entry.entry_id}_plant_{plant}"
+        )
+        assert entity_id is not None
+        registry_entry = registry.async_get(entity_id)
+        assert registry_entry.disabled_by is er.RegistryEntryDisabler.INTEGRATION
+        # Disabled entities have no state.
+        assert hass.states.get(entity_id) is None
+
+
+async def test_plant_sensor_states(hass: HomeAssistant, mock_api_get_forecast) -> None:
+    """Enabled plant sensors expose per-plant index and description data."""
+    with patch.object(
+        GooglePollenPlantSensor, "_attr_entity_registry_enabled_default", True
+    ):
+        await _setup(hass)
+
+    grasses = hass.states.get("sensor.google_pollen_grasses_pollen_index")
+    assert grasses is not None
+    assert grasses.state == "3"
+    assert grasses.attributes["in_season"] is True
+    assert grasses.attributes["category"] == "Moderate"
+    assert grasses.attributes["family"] == "Poaceae"
+    assert grasses.attributes["cross_reaction"] == "Pollen of other grasses"
+
+    # In season but no index data from the API - falls back to 0.
+    oak = hass.states.get("sensor.google_pollen_oak_pollen_index")
+    assert oak is not None
+    assert oak.state == "0"
+    assert oak.attributes["in_season"] is True
+
+    # Out of season - 0 with in_season False.
+    mugwort = hass.states.get("sensor.google_pollen_mugwort_pollen_index")
+    assert mugwort is not None
+    assert mugwort.state == "0"
+    assert mugwort.attributes["in_season"] is False
