@@ -5,11 +5,13 @@
         "title": "Set up Google Pollen",
         "description": "Enter your Google Pollen API key and location coordinates.",
         "data": {
+          "name": "Name",
           "api_key": "API Key",
           "latitude": "Latitude",
           "longitude": "Longitude"
         },
         "data_description": {
+          "name": "Name for this location (used as the device name)",
           "api_key": "Your Google Cloud API key with Pollen API enabled",
           "latitude": "Latitude of the location to monitor",
           "longitude": "Longitude of the location to monitor"
@@ -17,13 +19,15 @@
       },
       "reconfigure": {
         "title": "Reconfigure Google Pollen",
-        "description": "Update your API key or location coordinates.",
+        "description": "Update your name, API key, or location coordinates.",
         "data": {
+          "name": "Name",
           "api_key": "API Key",
           "latitude": "Latitude",
           "longitude": "Longitude"
         },
         "data_description": {
+          "name": "Name for this location (used as the device name)",
           "api_key": "Your Google Cloud API key with Pollen API enabled",
           "latitude": "Latitude of the location to monitor",
           "longitude": "Longitude of the location to monitor"

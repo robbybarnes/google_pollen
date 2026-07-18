@@ -18,6 +18,7 @@ USER_INPUT = {
 async def _setup(hass: HomeAssistant) -> MockConfigEntry:
     entry = MockConfigEntry(
         domain=DOMAIN,
+        title="Google Pollen",
         unique_id=f"{USER_INPUT[CONF_LATITUDE]}_{USER_INPUT[CONF_LONGITUDE]}",
         data=USER_INPUT,
     )

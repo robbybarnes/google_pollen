@@ -12,8 +12,8 @@ from homeassistant.config_entries import (
     ConfigFlowResult,
     OptionsFlow,
 )
-from homeassistant.const import CONF_LATITUDE, CONF_LONGITUDE
-from homeassistant.core import callback
+from homeassistant.const import CONF_LATITUDE, CONF_LONGITUDE, CONF_NAME
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 import voluptuous as vol
 
@@ -25,6 +25,7 @@ from .api import (
 from .const import (
     CONF_API_KEY,
     CONF_UPDATE_INTERVAL_HOURS,
+    DEFAULT_NAME,
     DEFAULT_UPDATE_INTERVAL_HOURS,
     DOMAIN,
 )
@@ -33,11 +34,17 @@ _LOGGER = logging.getLogger(__name__)
 
 
 def _unique_id(latitude: float, longitude: float) -> str:
-    """Build the per-location unique id."""
-    return f"{latitude}_{longitude}"
+    """Build the per-location unique id.
+
+    Coordinates are rounded to 5 decimal places (~1 m) so trailing-zero
+    variations of the same location don't create duplicate entries.
+    """
+    return f"{round(latitude, 5)}_{round(longitude, 5)}"
 
 
-async def _validate_connection(hass, user_input: dict[str, Any]) -> dict[str, str]:
+async def _validate_connection(
+    hass: HomeAssistant, user_input: dict[str, Any]
+) -> dict[str, str]:
     """Return an `errors` dict; empty on success."""
     errors: dict[str, str] = {}
     session = async_get_clientsession(hass)
@@ -64,6 +71,7 @@ def _build_schema(defaults: dict[str, Any]) -> vol.Schema:
     """Build the user/reconfigure schema with pre-filled defaults."""
     return vol.Schema(
         {
+            vol.Required(CONF_NAME, default=defaults.get(CONF_NAME, DEFAULT_NAME)): str,
             vol.Required(CONF_API_KEY, default=defaults.get(CONF_API_KEY, "")): str,
             vol.Required(CONF_LATITUDE, default=defaults[CONF_LATITUDE]): vol.Coerce(
                 float
@@ -73,6 +81,13 @@ def _build_schema(defaults: dict[str, Any]) -> vol.Schema:
             ),
         }
     )
+
+
+def _split_name(user_input: dict[str, Any]) -> tuple[str, dict[str, Any]]:
+    """Split the entry title from the stored config data."""
+    data = dict(user_input)
+    name = data.pop(CONF_NAME, DEFAULT_NAME)
+    return name, data
 
 
 class GooglePollenConfigFlow(ConfigFlow, domain=DOMAIN):
@@ -102,9 +117,11 @@ class GooglePollenConfigFlow(ConfigFlow, domain=DOMAIN):
 
             errors = await _validate_connection(self.hass, user_input)
             if not errors:
-                return self.async_create_entry(title="Google Pollen", data=user_input)
+                name, data = _split_name(user_input)
+                return self.async_create_entry(title=name, data=data)
 
         defaults = {
+            CONF_NAME: (user_input or {}).get(CONF_NAME, DEFAULT_NAME),
             CONF_API_KEY: (user_input or {}).get(CONF_API_KEY, ""),
             CONF_LATITUDE: (user_input or {}).get(
                 CONF_LATITUDE, self.hass.config.latitude
@@ -149,11 +166,13 @@ class GooglePollenConfigFlow(ConfigFlow, domain=DOMAIN):
 
             errors = await _validate_connection(self.hass, user_input)
             if not errors:
+                name, data = _split_name(user_input)
                 return self.async_update_reload_and_abort(
-                    entry, data=user_input, unique_id=new_unique_id
+                    entry, data=data, title=name, unique_id=new_unique_id
                 )
 
         defaults = {
+            CONF_NAME: (user_input or {}).get(CONF_NAME, entry.title),
             CONF_API_KEY: (user_input or entry.data).get(CONF_API_KEY, ""),
             CONF_LATITUDE: (user_input or entry.data)[CONF_LATITUDE],
             CONF_LONGITUDE: (user_input or entry.data)[CONF_LONGITUDE],

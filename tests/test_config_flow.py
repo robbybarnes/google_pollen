@@ -111,6 +111,8 @@ async def test_reconfigure_flow(hass: HomeAssistant, mock_api_get_forecast) -> N
         data=USER_INPUT,
     )
     entry.add_to_hass(hass)
+    await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
 
     result = await entry.start_reconfigure_flow(hass)
     assert result["type"] is FlowResultType.FORM
@@ -120,6 +122,7 @@ async def test_reconfigure_flow(hass: HomeAssistant, mock_api_get_forecast) -> N
     result = await hass.config_entries.flow.async_configure(
         result["flow_id"], new_input
     )
+    await hass.async_block_till_done()
 
     assert result["type"] is FlowResultType.ABORT
     assert result["reason"] == "reconfigure_successful"
@@ -136,12 +139,15 @@ async def test_reconfigure_changes_location(
         data=USER_INPUT,
     )
     entry.add_to_hass(hass)
+    await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
 
     result = await entry.start_reconfigure_flow(hass)
     new_input = {**USER_INPUT, CONF_LATITUDE: 40.0, CONF_LONGITUDE: -74.0}
     result = await hass.config_entries.flow.async_configure(
         result["flow_id"], new_input
     )
+    await hass.async_block_till_done()
 
     assert result["type"] is FlowResultType.ABORT
     assert result["reason"] == "reconfigure_successful"
@@ -188,6 +194,8 @@ async def test_reauth_flow_success(hass: HomeAssistant, mock_api_get_forecast) -
         data=USER_INPUT,
     )
     entry.add_to_hass(hass)
+    await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
 
     result = await entry.start_reauth_flow(hass)
     assert result["type"] is FlowResultType.FORM
@@ -196,6 +204,7 @@ async def test_reauth_flow_success(hass: HomeAssistant, mock_api_get_forecast) -
     result = await hass.config_entries.flow.async_configure(
         result["flow_id"], {CONF_API_KEY: "rotated-key"}
     )
+    await hass.async_block_till_done()
 
     assert result["type"] is FlowResultType.ABORT
     assert result["reason"] == "reauth_successful"

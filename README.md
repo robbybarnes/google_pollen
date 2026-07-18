@@ -14,7 +14,8 @@ A Home Assistant custom integration that provides pollen forecasts using the [Go
 - **In-Season Plant Details**: Per-pollen-type list of plants currently in season, with family and cross-reaction info
 - **Health Recommendations**: Get health advice based on current pollen levels
 - **Automatic Updates**: Data refreshes every 6 hours (configurable 1–24h via integration options)
-- **Reconfigurable**: Update API key *or* location without removing the integration
+- **Multiple Locations**: Add the integration once per location, each with its own name
+- **Reconfigurable**: Update the name, API key, or location without removing the integration
 - **Re-authentication**: If your API key is revoked or rotated, Home Assistant prompts you to enter a new one — no manual cleanup
 - **Diagnostics**: Download redacted diagnostics from Home Assistant for troubleshooting
 

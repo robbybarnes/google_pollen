@@ -9,7 +9,7 @@ from typing import Any
 
 import aiohttp
 
-from .const import API_BASE_URL, DEFAULT_FORECAST_DAYS
+from .const import API_BASE_URL, API_TIMEOUT_SECONDS, DEFAULT_FORECAST_DAYS
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -111,7 +111,6 @@ class GooglePollenApiClient:
     ) -> PollenForecast:
         """Get pollen forecast for a location."""
         params = {
-            "key": self._api_key,
             "location.latitude": str(latitude),
             "location.longitude": str(longitude),
             "days": str(days),
@@ -122,7 +121,10 @@ class GooglePollenApiClient:
             async with self._session.get(
                 API_BASE_URL,
                 params=params,
-                timeout=aiohttp.ClientTimeout(total=30),
+                # The key goes in a header rather than a query param so it
+                # can't end up in URLs captured by logs or proxies.
+                headers={"X-Goog-Api-Key": self._api_key},
+                timeout=aiohttp.ClientTimeout(total=API_TIMEOUT_SECONDS),
             ) as response:
                 if response.status == 200:
                     data = await response.json()

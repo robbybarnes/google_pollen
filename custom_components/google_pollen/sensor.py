@@ -8,6 +8,7 @@ from functools import partial
 from typing import Any
 
 from homeassistant.components.sensor import (
+    SensorDeviceClass,
     SensorEntity,
     SensorEntityDescription,
     SensorStateClass,
@@ -18,8 +19,10 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from . import GooglePollenConfigEntry
 from .api import PollenForecast
-from .const import ATTRIBUTION, POLLEN_TYPES
+from .const import ATTRIBUTION, POLLEN_CATEGORIES, POLLEN_TYPES
 from .coordinator import GooglePollenDataUpdateCoordinator
+
+PARALLEL_UPDATES = 0
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -64,13 +67,11 @@ def create_sensor_descriptions() -> list[GooglePollenSensorEntityDescription]:
 
     for pollen_type in POLLEN_TYPES:
         slug = pollen_type.lower()
-        title = pollen_type.title()
 
         descriptions.append(
             GooglePollenSensorEntityDescription(
                 key=f"{slug}_index",
                 translation_key=f"{slug}_index",
-                name=f"{title} Pollen Index",
                 icon="mdi:flower-pollen",
                 state_class=SensorStateClass.MEASUREMENT,
                 native_unit_of_measurement="UPI",
@@ -83,8 +84,9 @@ def create_sensor_descriptions() -> list[GooglePollenSensorEntityDescription]:
             GooglePollenSensorEntityDescription(
                 key=f"{slug}_category",
                 translation_key=f"{slug}_category",
-                name=f"{title} Pollen Level",
                 icon="mdi:flower-pollen-outline",
+                device_class=SensorDeviceClass.ENUM,
+                options=POLLEN_CATEGORIES,
                 value_fn=partial(get_pollen_category, pollen_type=pollen_type),
             )
         )

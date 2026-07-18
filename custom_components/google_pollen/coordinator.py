@@ -57,7 +57,7 @@ class GooglePollenDataUpdateCoordinator(DataUpdateCoordinator[PollenForecast]):
         self.attributes_by_type: dict[str, dict[str, Any]] = {}
         self.device_info = DeviceInfo(
             identifiers={(DOMAIN, config_entry.entry_id)},
-            name="Google Pollen",
+            name=config_entry.title,
             manufacturer="Google",
             model="Pollen API",
             entry_type=DeviceEntryType.SERVICE,
