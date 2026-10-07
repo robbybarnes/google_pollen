@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.4.0 (unreleased)
+## 1.4.0
 
 - Redact the coordinate-based config entry ID from diagnostics and avoid exposing provider response text in errors.
 - Preserve unknown readings; only explicit out-of-season reports without an index fall back to zero.
