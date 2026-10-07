@@ -2,15 +2,16 @@
 
 from __future__ import annotations
 
-from datetime import timedelta
+from datetime import date, datetime, timedelta
 import logging
 from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
+from homeassistant.util import dt as dt_util
 
 from .api import (
     GooglePollenApiAuthError,
@@ -24,7 +25,9 @@ from .const import (
     DEFAULT_FORECAST_DAYS,
     DEFAULT_UPDATE_INTERVAL_HOURS,
     DOMAIN,
+    POLLEN_TYPES,
 )
+from .forecast import forecast_day, future_forecast
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -51,6 +54,7 @@ class GooglePollenDataUpdateCoordinator(DataUpdateCoordinator[PollenForecast]):
             name=DOMAIN,
             update_interval=timedelta(hours=interval_hours),
         )
+        self.last_successful_update: datetime | None = None
         self.client = client
         self.latitude = latitude
         self.longitude = longitude
@@ -66,7 +70,7 @@ class GooglePollenDataUpdateCoordinator(DataUpdateCoordinator[PollenForecast]):
 
     async def _async_update_data(self) -> PollenForecast:
         """Fetch data from API."""
-        _LOGGER.debug("Fetching pollen data for %s, %s", self.latitude, self.longitude)
+        _LOGGER.debug("Fetching pollen forecast")
         try:
             forecast = await self.client.async_get_forecast(
                 latitude=self.latitude,
@@ -80,27 +84,51 @@ class GooglePollenDataUpdateCoordinator(DataUpdateCoordinator[PollenForecast]):
         except GooglePollenApiError as err:
             raise UpdateFailed(f"Error fetching pollen data: {err}") from err
 
+        if forecast_day(forecast) is None:
+            raise UpdateFailed("No pollen forecast for the current UTC date")
+        self.last_successful_update = dt_util.utcnow()
         self.attributes_by_type = _build_attributes_by_type(forecast)
         return forecast
+
+    @callback
+    def async_handle_utc_midnight(self, now: datetime) -> None:
+        """Advance cached daily readings without fetching or changing poll timing."""
+        if self.data is not None:
+            self.attributes_by_type = _build_attributes_by_type(self.data, now.date())
+            self.async_update_listeners()
+
+    @property
+    def freshness_attributes(self) -> dict[str, Any]:
+        """Expose the date of the reading and the last successful network refresh."""
+        day = forecast_day(self.data) if self.data else None
+        return {
+            "forecast_date": day.date if day else None,
+            "last_successful_update": (
+                self.last_successful_update.isoformat()
+                if self.last_successful_update
+                else None
+            ),
+        }
 
 
 def _build_attributes_by_type(
     forecast: PollenForecast,
+    current_date: date | None = None,
 ) -> dict[str, dict[str, Any]]:
     """Precompute the per-pollen-type attribute payload for sensors."""
-    if not forecast.daily_info:
-        return {}
-
-    today = forecast.daily_info[0]
-    plants_by_type = _bucket_plants_by_type(today.plants)
+    today = forecast_day(forecast, current_date)
+    plants_by_type = _bucket_plants_by_type(today.plants) if today else {}
 
     result: dict[str, dict[str, Any]] = {}
-    for code, info in today.pollen_types.items():
-        attrs: dict[str, Any] = {"in_season": info.in_season}
+    for code in POLLEN_TYPES:
+        info = today.pollen_types.get(code) if today else None
+        attrs: dict[str, Any] = {}
+        if info is not None:
+            attrs["in_season"] = info.in_season
 
-        if info.health_recommendations:
+        if info and info.health_recommendations:
             attrs["health_recommendations"] = info.health_recommendations
-        if info.index_info:
+        if info and info.index_info:
             attrs["index_description"] = info.index_info.description
             if info.index_info.color:
                 attrs["color"] = info.index_info.color
@@ -109,21 +137,7 @@ def _build_attributes_by_type(
         if in_season_plants:
             attrs["in_season_plants"] = in_season_plants
 
-        forecast_days = []
-        for day_info in forecast.daily_info[1:]:
-            day_pollen = day_info.pollen_types.get(code)
-            if day_pollen and day_pollen.index_info:
-                forecast_days.append(
-                    {
-                        # "datetime" mirrors HA's weather-forecast shape so
-                        # forecast cards can consume the list directly;
-                        # "date" is kept for existing templates.
-                        "datetime": day_info.date,
-                        "date": day_info.date,
-                        "index": day_pollen.index_info.value,
-                        "category": day_pollen.index_info.category,
-                    }
-                )
+        forecast_days = future_forecast(forecast, code, today=current_date)
         if forecast_days:
             attrs["forecast"] = forecast_days
 

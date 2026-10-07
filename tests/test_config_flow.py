@@ -8,12 +8,21 @@ from homeassistant.config_entries import SOURCE_USER
 from homeassistant.const import CONF_LATITUDE, CONF_LONGITUDE
 from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResultType
+from homeassistant.helpers.selector import TextSelectorType
+import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.google_pollen.api import (
     GooglePollenApiAuthError,
     GooglePollenApiConnectionError,
+    GooglePollenApiError,
+    GooglePollenApiLocationError,
+    GooglePollenApiPermissionError,
+    GooglePollenApiQuotaError,
+    GooglePollenApiResponseError,
+    GooglePollenApiServiceError,
 )
+from custom_components.google_pollen.config_flow import _build_schema
 from custom_components.google_pollen.const import (
     CONF_API_KEY,
     CONF_UPDATE_INTERVAL_HOURS,
@@ -256,3 +265,72 @@ async def test_options_flow(hass: HomeAssistant, mock_api_get_forecast) -> None:
     )
     assert result["type"] is FlowResultType.CREATE_ENTRY
     assert entry.options == {CONF_UPDATE_INTERVAL_HOURS: 12}
+
+
+@pytest.mark.parametrize(
+    ("error_class", "expected"),
+    [
+        (GooglePollenApiServiceError, "service_disabled"),
+        (GooglePollenApiQuotaError, "quota_exhausted"),
+        (GooglePollenApiPermissionError, "permission_denied"),
+        (GooglePollenApiLocationError, "invalid_location"),
+        (GooglePollenApiResponseError, "no_data"),
+        (GooglePollenApiError, "temporarily_unavailable"),
+    ],
+)
+async def test_actionable_setup_errors(hass, error_class, expected):
+    """Setup reports the recovery action instead of an unexpected error."""
+    with patch(
+        "custom_components.google_pollen.config_flow.GooglePollenApiClient.async_get_forecast",
+        new=AsyncMock(side_effect=error_class("safe message")),
+    ):
+        result = await hass.config_entries.flow.async_init(
+            DOMAIN, context={"source": SOURCE_USER}, data=USER_INPUT
+        )
+    assert result["errors"] == {"base": expected}
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        (CONF_LATITUDE, 91),
+        (CONF_LONGITUDE, -181),
+        (CONF_LATITUDE, float("nan")),
+        (CONF_LONGITUDE, float("inf")),
+    ],
+)
+async def test_invalid_coordinates_do_not_call_api(
+    hass, mock_api_get_forecast, field, value
+):
+    """Invalid and nonfinite coordinates are rejected locally."""
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": SOURCE_USER}, data={**USER_INPUT, field: value}
+    )
+    assert result["errors"] == {field: "invalid_location"}
+    mock_api_get_forecast.assert_not_called()
+
+
+async def test_api_key_fields_use_password_selector(hass):
+    """Setup, reconfigure, and reauth mask the API key in the frontend."""
+
+    entry = MockConfigEntry(domain=DOMAIN, data=USER_INPUT)
+    entry.add_to_hass(hass)
+    user = _build_schema(USER_INPUT)
+    reconfigure = await entry.start_reconfigure_flow(hass)
+    reauth = await entry.start_reauth_flow(hass)
+    for schema in (user, reconfigure["data_schema"], reauth["data_schema"]):
+        key_selector = next(
+            value for key, value in schema.schema.items() if key.schema == CONF_API_KEY
+        )
+        assert key_selector.config["type"] == TextSelectorType.PASSWORD
+
+
+async def test_expired_forecast_is_reported_as_no_data(
+    hass, mock_api_get_forecast, freezer
+):
+    """Validation must not create an entry from stale but well-formed data."""
+    freezer.move_to("2026-04-21T12:00:00+00:00")
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": SOURCE_USER}, data=USER_INPUT
+    )
+    assert result["errors"] == {"base": "no_data"}

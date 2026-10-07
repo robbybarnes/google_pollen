@@ -81,3 +81,32 @@ async def test_successful_update_builds_attributes_cache(
     assert grass_attrs["in_season"] is True
     assert grass_attrs["color"] == "#FFCC00"
     assert any(p["code"] == "GRAMINALES" for p in grass_attrs["in_season_plants"])
+
+
+async def test_failed_refresh_preserves_last_successful_timestamp(
+    hass, mock_api_get_forecast, freezer
+):
+    """A failed poll cannot advance freshness or replace cached attributes."""
+    coordinator = _make_coordinator(hass)
+    await coordinator._async_update_data()
+    timestamp = coordinator.last_successful_update
+    attributes = coordinator.attributes_by_type
+    freezer.move_to("2026-04-19T13:00:00+00:00")
+    mock_api_get_forecast.side_effect = GooglePollenApiConnectionError(
+        "connection failed"
+    )
+    with pytest.raises(UpdateFailed):
+        await coordinator._async_update_data()
+    assert coordinator.last_successful_update == timestamp
+    assert coordinator.attributes_by_type is attributes
+
+
+async def test_old_response_is_not_a_successful_refresh(
+    hass, mock_api_get_forecast, freezer
+):
+    """A valid but expired API forecast must not advance freshness."""
+    coordinator = _make_coordinator(hass)
+    freezer.move_to("2026-04-21T12:00:00+00:00")
+    with pytest.raises(UpdateFailed, match="current UTC date"):
+        await coordinator._async_update_data()
+    assert coordinator.last_successful_update is None

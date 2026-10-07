@@ -45,9 +45,15 @@
       }
     },
     "error": {
-      "invalid_auth": "Invalid API key or API key does not have Pollen API access",
+      "invalid_auth": "The API key is invalid or expired. Enter a valid Google Cloud API key.",
       "cannot_connect": "Failed to connect to Google Pollen API",
-      "unknown": "Unexpected error occurred"
+      "unknown": "Unexpected error occurred",
+      "service_disabled": "Enable the Pollen API in your Google Cloud project.",
+      "quota_exhausted": "Pollen API quota exhausted. Check project quotas and wait before trying again.",
+      "permission_denied": "Access denied. Check API key restrictions, project permissions, and billing.",
+      "invalid_location": "Enter valid coordinates (latitude -90 to 90, longitude -180 to 180) and check Pollen API coverage.",
+      "no_data": "No usable pollen forecast was returned for this location. Check coverage or try again later.",
+      "temporarily_unavailable": "The Pollen API is temporarily unavailable. Try again later."
     },
     "abort": {
       "already_configured": "This location is already configured",
@@ -63,7 +69,7 @@
           "update_interval_hours": "Update interval (hours)"
         },
         "data_description": {
-          "update_interval_hours": "How often to poll the Google Pollen API (1–24 hours). Default is 6."
+          "update_interval_hours": "How often to poll the Google Pollen API (1\u201324 hours). Default is 6."
         }
       }
     }
@@ -87,6 +93,27 @@
       },
       "weed_category": {
         "name": "Weed Pollen Level"
+      },
+      "grass_tomorrow_index": {
+        "name": "Grass Pollen Tomorrow Index"
+      },
+      "grass_peak_index": {
+        "name": "Grass Pollen Upcoming Peak Index"
+      },
+      "tree_tomorrow_index": {
+        "name": "Tree Pollen Tomorrow Index"
+      },
+      "tree_peak_index": {
+        "name": "Tree Pollen Upcoming Peak Index"
+      },
+      "weed_tomorrow_index": {
+        "name": "Weed Pollen Tomorrow Index"
+      },
+      "weed_peak_index": {
+        "name": "Weed Pollen Upcoming Peak Index"
+      },
+      "last_successful_update": {
+        "name": "Last Successful Update"
       }
     }
   }
