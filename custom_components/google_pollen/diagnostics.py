@@ -12,7 +12,7 @@ from homeassistant.core import HomeAssistant
 from . import GooglePollenConfigEntry
 from .const import CONF_API_KEY
 
-TO_REDACT = {CONF_API_KEY, CONF_LATITUDE, CONF_LONGITUDE}
+TO_REDACT = {CONF_API_KEY, CONF_LATITUDE, CONF_LONGITUDE, "unique_id"}
 
 
 def _serialize(value: Any) -> Any:
@@ -33,20 +33,24 @@ async def async_get_config_entry_diagnostics(
     coordinator = entry.runtime_data
     forecast = coordinator.data
 
-    return {
-        "entry": {
-            "data": async_redact_data(dict(entry.data), TO_REDACT),
-            "options": dict(entry.options),
-            "unique_id": entry.unique_id,
+    return async_redact_data(
+        {
+            "entry": {
+                "data": dict(entry.data),
+                "options": dict(entry.options),
+                "unique_id": entry.unique_id,
+            },
+            "coordinator": {
+                "last_update_success": coordinator.last_update_success,
+                **coordinator.freshness_attributes,
+                "update_interval_seconds": (
+                    coordinator.update_interval.total_seconds()
+                    if coordinator.update_interval
+                    else None
+                ),
+                "attributes_by_type": coordinator.attributes_by_type,
+            },
+            "forecast": _serialize(forecast) if forecast is not None else None,
         },
-        "coordinator": {
-            "last_update_success": coordinator.last_update_success,
-            "update_interval_seconds": (
-                coordinator.update_interval.total_seconds()
-                if coordinator.update_interval
-                else None
-            ),
-            "attributes_by_type": coordinator.attributes_by_type,
-        },
-        "forecast": _serialize(forecast) if forecast is not None else None,
-    }
+        TO_REDACT,
+    )

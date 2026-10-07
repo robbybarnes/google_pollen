@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+
 from homeassistant.components.diagnostics import REDACTED
 from homeassistant.const import CONF_LATITUDE, CONF_LONGITUDE
 from homeassistant.core import HomeAssistant
@@ -62,3 +64,13 @@ async def test_diagnostics_payload_shape(
     forecast = diagnostics["forecast"]
     assert forecast["region_code"] == "US"
     assert forecast["daily_info"]
+
+    encoded = json.dumps(diagnostics)
+    for value in (
+        USER_INPUT[CONF_API_KEY],
+        str(USER_INPUT[CONF_LATITUDE]),
+        str(USER_INPUT[CONF_LONGITUDE]),
+        entry.unique_id,
+    ):
+        assert value not in encoded
+    assert diagnostics["entry"]["unique_id"] == REDACTED

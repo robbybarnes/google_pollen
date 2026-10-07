@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 import logging
+import math
 from typing import Any
 
 from homeassistant.config_entries import (
@@ -14,6 +15,7 @@ from homeassistant.config_entries import (
 )
 from homeassistant.const import CONF_LATITUDE, CONF_LONGITUDE, CONF_NAME
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers import selector
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 import voluptuous as vol
 
@@ -21,6 +23,12 @@ from .api import (
     GooglePollenApiAuthError,
     GooglePollenApiClient,
     GooglePollenApiConnectionError,
+    GooglePollenApiError,
+    GooglePollenApiLocationError,
+    GooglePollenApiPermissionError,
+    GooglePollenApiQuotaError,
+    GooglePollenApiResponseError,
+    GooglePollenApiServiceError,
 )
 from .const import (
     CONF_API_KEY,
@@ -29,6 +37,7 @@ from .const import (
     DEFAULT_UPDATE_INTERVAL_HOURS,
     DOMAIN,
 )
+from .forecast import forecast_day
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -47,19 +56,39 @@ async def _validate_connection(
 ) -> dict[str, str]:
     """Return an `errors` dict; empty on success."""
     errors: dict[str, str] = {}
+    for field, limit in ((CONF_LATITUDE, 90), (CONF_LONGITUDE, 180)):
+        value = user_input[field]
+        if (
+            not isinstance(value, (int, float))
+            or not math.isfinite(value)
+            or abs(value) > limit
+        ):
+            errors[field] = "invalid_location"
+    if not user_input[CONF_API_KEY].strip():
+        errors[CONF_API_KEY] = "invalid_auth"
+    if errors:
+        return errors
     session = async_get_clientsession(hass)
     client = GooglePollenApiClient(user_input[CONF_API_KEY], session)
 
     try:
-        await client.async_get_forecast(
+        forecast = await client.async_get_forecast(
             latitude=user_input[CONF_LATITUDE],
             longitude=user_input[CONF_LONGITUDE],
             days=1,
         )
-    except GooglePollenApiAuthError:
-        errors["base"] = "invalid_auth"
-    except GooglePollenApiConnectionError:
-        errors["base"] = "cannot_connect"
+        if forecast_day(forecast) is None:
+            errors["base"] = "no_data"
+    except GooglePollenApiError as err:
+        errors["base"] = {
+            GooglePollenApiAuthError: "invalid_auth",
+            GooglePollenApiConnectionError: "cannot_connect",
+            GooglePollenApiServiceError: "service_disabled",
+            GooglePollenApiQuotaError: "quota_exhausted",
+            GooglePollenApiPermissionError: "permission_denied",
+            GooglePollenApiLocationError: "invalid_location",
+            GooglePollenApiResponseError: "no_data",
+        }.get(type(err), "temporarily_unavailable")
     except Exception:
         _LOGGER.exception("Unexpected exception validating Google Pollen API")
         errors["base"] = "unknown"
@@ -72,12 +101,16 @@ def _build_schema(defaults: dict[str, Any]) -> vol.Schema:
     return vol.Schema(
         {
             vol.Required(CONF_NAME, default=defaults.get(CONF_NAME, DEFAULT_NAME)): str,
-            vol.Required(CONF_API_KEY, default=defaults.get(CONF_API_KEY, "")): str,
-            vol.Required(CONF_LATITUDE, default=defaults[CONF_LATITUDE]): vol.Coerce(
-                float
+            vol.Required(
+                CONF_API_KEY, default=defaults.get(CONF_API_KEY, "")
+            ): selector.TextSelector(
+                selector.TextSelectorConfig(type=selector.TextSelectorType.PASSWORD)
             ),
-            vol.Required(CONF_LONGITUDE, default=defaults[CONF_LONGITUDE]): vol.Coerce(
-                float
+            vol.Required(CONF_LATITUDE, default=defaults[CONF_LATITUDE]): vol.All(
+                vol.Coerce(float), vol.Range(min=-90, max=90)
+            ),
+            vol.Required(CONF_LONGITUDE, default=defaults[CONF_LONGITUDE]): vol.All(
+                vol.Coerce(float), vol.Range(min=-180, max=180)
             ),
         }
     )
@@ -86,7 +119,8 @@ def _build_schema(defaults: dict[str, Any]) -> vol.Schema:
 def _split_name(user_input: dict[str, Any]) -> tuple[str, dict[str, Any]]:
     """Split the entry title from the stored config data."""
     data = dict(user_input)
-    name = data.pop(CONF_NAME, DEFAULT_NAME)
+    name = data.pop(CONF_NAME, DEFAULT_NAME).strip() or DEFAULT_NAME
+    data[CONF_API_KEY] = data[CONF_API_KEY].strip()
     return name, data
 
 
@@ -198,14 +232,22 @@ class GooglePollenConfigFlow(ConfigFlow, domain=DOMAIN):
         errors: dict[str, str] = {}
 
         if user_input is not None:
-            merged = {**entry.data, CONF_API_KEY: user_input[CONF_API_KEY]}
+            merged = {**entry.data, CONF_API_KEY: user_input[CONF_API_KEY].strip()}
             errors = await _validate_connection(self.hass, merged)
             if not errors:
                 return self.async_update_reload_and_abort(entry, data=merged)
 
         return self.async_show_form(
             step_id="reauth_confirm",
-            data_schema=vol.Schema({vol.Required(CONF_API_KEY): str}),
+            data_schema=vol.Schema(
+                {
+                    vol.Required(CONF_API_KEY): selector.TextSelector(
+                        selector.TextSelectorConfig(
+                            type=selector.TextSelectorType.PASSWORD
+                        )
+                    )
+                }
+            ),
             errors=errors,
         )
 

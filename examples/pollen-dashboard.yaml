@@ -1,0 +1,79 @@
+# Paste this as a Manual card in a Home Assistant dashboard.
+# Replace entity IDs throughout if you named the location differently.
+type: vertical-stack
+cards:
+  - type: entities
+    title: Pollen today (UTC)
+    show_header_toggle: false
+    entities:
+      - entity: sensor.google_pollen_grass_pollen_level
+        name: Grass
+      - entity: sensor.google_pollen_tree_pollen_level
+        name: Tree
+      - entity: sensor.google_pollen_weed_pollen_level
+        name: Weed
+      - entity: sensor.google_pollen_last_successful_update
+        name: Last API refresh
+  - type: history-graph
+    title: Recent pollen readings
+    hours_to_show: 120
+    entities:
+      - entity: sensor.google_pollen_grass_pollen_index
+        name: Grass
+      - entity: sensor.google_pollen_tree_pollen_index
+        name: Tree
+      - entity: sensor.google_pollen_weed_pollen_index
+        name: Weed
+  - type: markdown
+    title: Pollen forecast (UTC)
+    content: |
+      {% set sensors = ['sensor.google_pollen_grass_pollen_index', 'sensor.google_pollen_tree_pollen_index', 'sensor.google_pollen_weed_pollen_index'] %}
+      {% set ns = namespace(days=[]) %}
+      {% for entity in sensors %}
+        {% for day in state_attr(entity, 'forecast') or [] %}
+          {% if day.date not in ns.days %}{% set ns.days = ns.days + [day.date] %}{% endif %}
+        {% endfor %}
+      {% endfor %}
+      {% macro reading(entity, date) -%}
+        {%- set row = (state_attr(entity, 'forecast') or []) | selectattr('date', 'eq', date) | first | default(none) -%}
+        {%- if row and row.index is not none -%}
+          {{ row.index }} · {{ row.category }}
+          {%- if is_number(states(entity)) -%}
+            {{ ' ↑' if row.index > states(entity)|float else ' ↓' if row.index < states(entity)|float else ' →' }}
+          {%- endif -%}
+        {%- else -%}—{%- endif -%}
+      {%- endmacro %}
+      Forecast date: **{{ state_attr(sensors[0], 'forecast_date') or 'No current data' }}**.
+      Last successful refresh: **{{ state_attr(sensors[0], 'last_successful_update') or 'Unknown' }}**.
+      {% if sensors | select('has_value') | list | count < 3 %}
+      _Some current readings are unknown or unavailable. Check integration status and data coverage._
+      {% endif %}
+
+      | UTC date | Grass | Tree | Weed |
+      | :--- | :--- | :--- | :--- |
+      | Today | {{ states('sensor.google_pollen_grass_pollen_level') }} | {{ states('sensor.google_pollen_tree_pollen_level') }} | {{ states('sensor.google_pollen_weed_pollen_level') }} |
+      {% for date in ns.days | sort %}
+      | {{ date }} | {{ reading(sensors[0], date) }} | {{ reading(sensors[1], date) }} | {{ reading(sensors[2], date) }} |
+      {% endfor %}
+
+      UPI: 0–5. Arrows compare each forecast with the current reading. — means no reading.
+      {% if not ns.days %}_No upcoming forecast is available._{% endif %}
+  - type: markdown
+    title: Active plants and recommendations
+    content: |
+      {% for code in ['grass', 'tree', 'weed'] %}
+      {% set entity = 'sensor.google_pollen_' ~ code ~ '_pollen_index' %}
+      **{{ code | title }}**
+      {% set plants = state_attr(entity, 'in_season_plants') or [] %}
+      {% if not has_value(entity) %}
+      Current pollen data is unavailable.
+      {% elif plants %}
+      In-season plants: {{ plants | map(attribute='display_name') | join(', ') }}.
+      {% else %}
+      No in-season plants reported.
+      {% endif %}
+      {% for recommendation in state_attr(entity, 'health_recommendations') or [] %}
+      - {{ recommendation }}
+      {% endfor %}
+
+      {% endfor %}

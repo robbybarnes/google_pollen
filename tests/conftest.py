@@ -38,3 +38,9 @@ def mock_api_get_forecast(forecast_json):
         new=AsyncMock(return_value=parsed),
     ) as mock:
         yield mock
+
+
+@pytest.fixture(autouse=True)
+def freeze_forecast_date(freezer):
+    """Fixture forecasts describe this UTC day, independent of the test date."""
+    freezer.move_to("2026-04-19T12:00:00+00:00")

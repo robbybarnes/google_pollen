@@ -10,7 +10,10 @@ A Home Assistant custom integration that provides pollen forecasts using the [Go
 
 - **Pollen Index Sensors**: Get the Universal Pollen Index (UPI) for grass, tree, and weed pollen (scale 0-5)
 - **Pollen Level Sensors**: Human-readable pollen levels (None, Very Low, Low, Moderate, High, Very High)
-- **5-Day Forecast**: Access upcoming pollen forecasts via sensor attributes
+- **Date-Aware Forecasts**: Access up to five days of pollen data; cached readings advance at UTC midnight without an extra API request
+- **Tomorrow and Peak Sensors**: Optional per-type sensors for tomorrow and the largest known upcoming index
+- **Data Freshness**: A diagnostic timestamp sensor and `forecast_date` / `last_successful_update` attributes
+- **Dashboard Example**: Built-in cards for trends, forecasts, active plants, and recommendations
 - **In-Season Plant Details**: Per-pollen-type list of plants currently in season, with family and cross-reaction info
 - **Per-Plant Sensors**: Optional index sensors for each plant the API reports for your region (oak, birch, ragweed, ...) — disabled by default, enable the ones you care about from the device page
 - **Health Recommendations**: Get health advice based on current pollen levels
@@ -35,21 +38,44 @@ The level sensors are enum sensors with the states `None`, `Very Low`, `Low`, `M
 
 ### Sensor Attributes
 
-Each index sensor includes additional attributes:
+Current index sensors include additional attributes:
+- `forecast_date`: Date of the current forecast record, in UTC; `null` if no current record exists
+- `last_successful_update`: UTC timestamp of the last successful API refresh
 - `in_season`: Whether the pollen type is currently in season
 - `health_recommendations`: List of health tips based on pollen levels
 - `index_description`: Description of what the current index level means
 - `color`: Index color as a `#RRGGBB` hex string (usable directly in Lovelace conditions)
 - `in_season_plants`: List of plants currently in season for this pollen type, each with `code`, `display_name`, `family`, `season`, and `cross_reaction`
-- `forecast`: Array of upcoming days with index and category values; each entry has `datetime` (weather-forecast-card style) plus `date`, `index`, and `category`
+- `forecast`: Array of upcoming returned dates, with `datetime`, `date`, `index`, `category`, and `in_season`. Missing readings remain `null`. These are pollen-specific attributes; they do not make the entity a Home Assistant weather entity.
 
 ### Per-Plant Sensors
 
-In addition to the six sensors above, one index sensor is created for every plant the API reports for your region (e.g. `sensor.google_pollen_oak_pollen_index`). These are **disabled by default** to avoid clutter — open the Google Pollen device page in Home Assistant and enable the plants you care about. Each plant sensor exposes `in_season`, `category`, `family`, `season`, and `cross_reaction` attributes where the API provides them.
+In addition to the six sensors above, one index sensor is created for every plant the API reports for your region (e.g. `sensor.google_pollen_oak_pollen_index`). These are **disabled by default** to avoid clutter — open the Google Pollen device page in Home Assistant and enable the plants you care about. Each plant sensor exposes `in_season`, `category`, `family`, `season`, and `cross_reaction` attributes where the API provides them, plus the same freshness and future `forecast` attributes as the main index sensors. Plants reported only on future dates also receive optional entities.
+
+### Optional Forecast Sensors
+
+Enable these from the Google Pollen device page when needed:
+
+| Entity ID (default location name) | Meaning |
+| --- | --- |
+| `sensor.google_pollen_grass_pollen_tomorrow_index` | Grass UPI for the next UTC date |
+| `sensor.google_pollen_grass_pollen_upcoming_peak_index` | Highest known grass UPI on future returned dates |
+
+Equivalent tomorrow and peak sensors are available for tree and weed pollen. They are disabled by default and use the existing cached forecast, so enabling them adds no API calls. Forecast values are not declared as measurements for long-term statistics.
+
+Peak sensors expose `peak_date` (earliest date in a tie), `forecast_days`, and `forecast_complete`. The peak is computed from **known readings**, excluding today. `forecast_complete` means every returned future date has a known reading; it does not guarantee four future days were returned. If every future reading is unknown, the peak is unknown too.
+
+`sensor.google_pollen_last_successful_update` is an enabled diagnostic timestamp sensor. It remains readable during API outages so you can inspect data freshness.
+
+### Reading Semantics
+
+An explicit UPI is reported as provided (0–5), with a stable category derived from its numeric value. A reported pollen type or plant with no index is zero only when the API explicitly reports `inSeason: false`. Missing readings for in-season plants, missing season information, and absent species remain **unknown**. A failed refresh makes current pollen sensors **unavailable**; it does not advance the last-successful timestamp.
+
+Google represents forecast dates in UTC. “Today” and “tomorrow” in this integration follow UTC, including locations in other time zones. At midnight UTC, sensors select the next cached dated record. If no matching record exists, the state becomes unknown rather than continuing to display yesterday's reading. Polling still follows the configured interval.
 
 ## Prerequisites
 
-- Home Assistant **2024.11** or newer
+- Home Assistant **2025.4.4** or newer (the minimum version is tested in CI)
 
 ### Google Cloud API Key
 
@@ -111,7 +137,32 @@ automation:
           title: "High Pollen Alert"
           message: >
             Grass pollen is {{ states('sensor.google_pollen_grass_pollen_level') }}.
-            {{ state_attr('sensor.google_pollen_grass_pollen_index', 'health_recommendations')[0] }}
+            {{ (state_attr('sensor.google_pollen_grass_pollen_index', 'health_recommendations') or [''])[0] }}
+```
+
+### Complete forecast dashboard
+
+Copy [examples/pollen-dashboard.yaml](examples/pollen-dashboard.yaml) into a **Manual** dashboard card. It uses only built-in entities, history graph, and Markdown cards. It shows current levels, recent readings, upcoming forecasts with direction arrows, in-season plants, recommendations, and the last successful refresh. Replace the entity IDs throughout if you named the location differently. Unknown forecasts are displayed as a dash.
+
+### Alert on tomorrow's forecast
+
+Enable the optional tomorrow sensor first:
+
+```yaml
+automation:
+  - alias: "High grass pollen tomorrow"
+    trigger:
+      - platform: numeric_state
+        entity_id: sensor.google_pollen_grass_pollen_tomorrow_index
+        above: 3
+    action:
+      - service: notify.mobile_app
+        data:
+          title: "High pollen tomorrow"
+          message: >-
+            Grass UPI is forecast to reach
+            {{ states('sensor.google_pollen_grass_pollen_tomorrow_index') }} on
+            {{ state_attr('sensor.google_pollen_grass_pollen_tomorrow_index', 'forecast_date') }} (UTC).
 ```
 
 ### Display pollen card on dashboard
@@ -130,12 +181,20 @@ entities:
 
 ## Troubleshooting
 
-### "Invalid API key" error
-- Ensure the Pollen API is enabled in your Google Cloud project
-- Check that your API key has no IP restrictions or that your Home Assistant IP is allowed
+### Setup and API errors
+
+- **Invalid API key**: Replace an invalid, expired, or revoked key.
+- **Service disabled**: Enable the Pollen API in the Google Cloud project.
+- **Access denied**: Check project permissions, billing, and API key restrictions. If using IP restrictions, allow your Home Assistant server's public IP.
+- **Quota exhausted**: Check Google Cloud quotas and wait before retrying. Consider a longer polling interval when monitoring several locations.
+- **Invalid location / no data**: Check coordinate ranges and coverage, then retry if coverage is supported.
+- **Cannot connect / temporarily unavailable**: Check connectivity or wait for the provider to recover.
 - If the key was working previously and was rotated or revoked, Home Assistant will show a re-authentication prompt — enter the new key there instead of removing and re-adding the integration
 
+Only invalid credentials initiate reauthentication. Disabled service, quota, permission, and temporary failures do not prompt you to rotate an otherwise valid key.
+
 ### Sensors show "Unknown"
+- A reading or current UTC date may be absent from the response, including an in-season plant with no index
 - Pollen data may not be available for your location
 - Check the [coverage map](https://developers.google.com/maps/documentation/pollen/coverage) to verify support
 
@@ -146,6 +205,8 @@ MIT License - see [LICENSE](LICENSE) for details.
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
+
+Run the suite in Python 3.13 with `pip install -r requirements_test.txt` and `pytest tests/ -q`. To verify the minimum Home Assistant release, use a separate environment with `pip install -r requirements_test_min.txt` and the same pytest command. CI also runs the current test harness on Python 3.13 and 3.14, alongside Ruff, HACS, and Hassfest validation.
 
 ## Disclaimer
 
